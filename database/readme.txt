@@ -1,0 +1,1 @@
+Dont forget to edit the url for your server in the database please.
