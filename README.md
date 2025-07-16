@@ -36,8 +36,8 @@ Before installation, ensure the following:
 
 **Option A – Using Git:**
 ```bash
-git clone https://github.com/yourusername/maplecore-cms.git](https://github.com/Khuwanko/MapleCore-CMS.git
-cd maplecore-cms
+git clone https://github.com/Khuwanko/MapleCore-v1.git
+cd MapleCore-v1
 ```
 
 Option B – Download ZIP:
