@@ -2,20 +2,81 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { secureQueries } from '@/lib/db';
+import { query } from '@/lib/db'; // Import the query function for direct queries
 
 export const GET = requireAuth(async (req: AuthenticatedRequest) => {
   try {
     const userId = req.user!.userId;
 
-    // Get all user's characters
+    // Get all user's characters with appearance data
     const characters = await secureQueries.getCharactersByAccountId(userId);
 
-    // Format characters data
-    const formattedCharacters = characters.map((char: any) => {
+    // Format characters data with equipment
+    const formattedCharacters = await Promise.all(characters.map(async (char: any) => {
+      // Get equipment for this character
+      const equipmentQuery = `
+        SELECT itemid, position
+        FROM inventoryitems
+        WHERE characterid = ? AND inventorytype = -1
+      `;
+      
+      const equipmentRows = await query(equipmentQuery, [char.id]);
+      
+      // Map equipment positions to equipment slots
+      const equipment: any = {};
+
+      // First pass: Add regular items
+      equipmentRows.forEach((item: any) => {
+        let slot: string | null = null;
+        
+        // Map regular equipment positions
+        switch(item.position) {
+          case -1: slot = 'cap'; break;
+          case -2: slot = 'mask'; break;
+          case -3: slot = 'eyes'; break;
+          case -4: slot = 'ears'; break;
+          case -5: slot = 'coat'; break;
+          case -6: slot = 'pants'; break;
+          case -7: slot = 'shoes'; break;
+          case -8: slot = 'glove'; break;
+          case -9: slot = 'cape'; break;
+          case -10: slot = 'shield'; break;
+          case -11: slot = 'weapon'; break;
+        }
+        
+        if (slot) {
+          equipment[slot] = item.itemid;
+        }
+      });
+
+      // Second pass: Override with cash items (they take priority)
+      equipmentRows.forEach((item: any) => {
+        let slot: string | null = null;
+        
+        // Map cash equipment positions
+        switch(item.position) {
+          case -101: slot = 'cap'; break;
+          case -102: slot = 'mask'; break;
+          case -103: slot = 'eyes'; break;
+          case -104: slot = 'ears'; break;
+          case -105: slot = 'coat'; break;
+          case -106: slot = 'pants'; break;
+          case -107: slot = 'shoes'; break;
+          case -108: slot = 'glove'; break;
+          case -109: slot = 'cape'; break;
+          case -110: slot = 'shield'; break;
+          case -111: slot = 'weapon'; break;
+        }
+        
+        if (slot) {
+          equipment[slot] = item.itemid; // This overwrites the regular item
+        }
+      });
+
       // Calculate exp percentage (simplified)
       const expToNextLevel = getExpForLevel(char.level + 1);
       const expCurrentLevel = getExpForLevel(char.level);
-      const expProgress = expToNextLevel > 0 ? 
+      const expProgress = expToNextLevel > expCurrentLevel ? 
         Math.floor(((char.exp - expCurrentLevel) / (expToNextLevel - expCurrentLevel)) * 100) : 0;
 
       return {
@@ -25,15 +86,27 @@ export const GET = requireAuth(async (req: AuthenticatedRequest) => {
         job: getJobName(char.job),
         jobId: char.job,
         exp: Math.max(0, Math.min(100, expProgress)),
+        meso: char.meso || 0,
+        // Add appearance data
+        skincolor: char.skincolor || 0,
+        gender: char.gender || 0,
+        hair: char.hair || 30000,
+        face: char.face || 20000,
+        // Add stats
         stats: {
-          str: char.str,
-          dex: char.dex,
-          int: char.int,
-          luk: char.luk
+          str: char.str || 4,
+          dex: char.dex || 4,
+          int: char.int || 4,
+          luk: char.luk || 4
         },
-        meso: char.meso || 0
+        // Add equipment
+        equipment: equipment,
+        // Additional useful data
+        fame: char.fame || 0,
+        map: char.map || 0,
+        guildid: char.guildid || 0
       };
-    });
+    }));
 
     return NextResponse.json({ characters: formattedCharacters });
 

@@ -91,13 +91,14 @@ async function loginHandler(request: NextRequest) {
       }
     });
 
-    // Set secure HttpOnly cookie
+    // FIXED: Set cookie with proper settings for cross-origin access
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: false, // Set to false for HTTP (true only for HTTPS)
+      sameSite: 'lax', // Changed from 'strict' to 'lax' to allow cross-origin requests
       maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: '/'
+      path: '/',
+      // Don't set domain - let browser handle it automatically
     });
 
     console.log(`Successful login: ${username} from IP: ${request.headers.get('x-forwarded-for') || 'unknown'}`);

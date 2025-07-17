@@ -226,6 +226,7 @@ const MapleKaedeLanding = () => {
             width={20}
             height={20}
             className="opacity-60"
+            unoptimized={true}  // Add this line
           />
         </div>
       ))}
@@ -447,14 +448,12 @@ const MapleKaedeLanding = () => {
                       animationDuration: `${leaf.swayDuration}s`
                     }}
                   >
-                    <Image
+                    <img
                       src={`/leafs/${leaf.leafType}.png`}
                       alt="Maple Leaf"
                       width={60}
                       height={60}
                       className="opacity-70"
-                      priority
-                      loading="eager"
                     />
                   </div>
                 </div>

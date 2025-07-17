@@ -1,7 +1,24 @@
 -- Vote System Database Migration Script for MapleKaede
--- Compatible with MySQL 5.7 and 8.0 - Handles existing indexes
+-- Compatible with MySQL 5.7 and 8.0 - Creates all necessary tables
 
--- 1. First, let's check if columns exist and add them if they don't
+-- 1. Create the vote_logs table first
+CREATE TABLE IF NOT EXISTS vote_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(50) NOT NULL,
+  site VARCHAR(50) NOT NULL,
+  vote_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+  ip_address VARCHAR(45),
+  ip_hash VARCHAR(64),
+  status ENUM('success', 'failed', 'cooldown', 'duplicate') DEFAULT 'success',
+  failure_reason VARCHAR(255),
+  nx_awarded INT DEFAULT 0,
+  votepoints_awarded INT DEFAULT 0,
+  INDEX idx_username_site_time (username, site, vote_time),
+  INDEX idx_ip_hash_site_time (ip_hash, site, vote_time),
+  INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2. Create stored procedures for adding columns/indexes if they don't exist
 DELIMITER $$
 
 DROP PROCEDURE IF EXISTS AddColumnIfNotExists$$
@@ -46,17 +63,19 @@ END$$
 
 DELIMITER ;
 
--- Add missing columns to vote_logs
+-- 3. Add any missing columns to vote_logs (in case table already exists with partial schema)
 CALL AddColumnIfNotExists('vote_logs', 'ip_hash', 'VARCHAR(64) AFTER ip_address');
 CALL AddColumnIfNotExists('vote_logs', 'status', "ENUM('success', 'failed', 'cooldown', 'duplicate') DEFAULT 'success' AFTER ip_hash");
 CALL AddColumnIfNotExists('vote_logs', 'failure_reason', 'VARCHAR(255) AFTER status');
+CALL AddColumnIfNotExists('vote_logs', 'nx_awarded', 'INT DEFAULT 0 AFTER failure_reason');
+CALL AddColumnIfNotExists('vote_logs', 'votepoints_awarded', 'INT DEFAULT 0 AFTER nx_awarded');
 
 -- Add indexes only if they don't exist
 CALL AddIndexIfNotExists('vote_logs', 'idx_username_site_time', 'username, site, vote_time');
 CALL AddIndexIfNotExists('vote_logs', 'idx_ip_hash_site_time', 'ip_hash, site, vote_time');
 CALL AddIndexIfNotExists('vote_logs', 'idx_status', 'status');
 
--- 2. Create IP cooldown tracking table
+-- 4. Create IP cooldown tracking table
 CREATE TABLE IF NOT EXISTS vote_ip_cooldowns (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ip_hash VARCHAR(64) NOT NULL,
@@ -67,7 +86,7 @@ CREATE TABLE IF NOT EXISTS vote_ip_cooldowns (
   INDEX idx_last_vote (last_vote_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 3. Create vote sites configuration table
+-- 5. Create vote sites configuration table
 CREATE TABLE IF NOT EXISTS vote_sites (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) NOT NULL,
@@ -85,7 +104,7 @@ CREATE TABLE IF NOT EXISTS vote_sites (
   UNIQUE KEY unique_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 4. Create vote webhooks log table (optional - for debugging)
+-- 6. Create vote webhooks log table (optional - for debugging)
 CREATE TABLE IF NOT EXISTS vote_webhook_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -98,7 +117,7 @@ CREATE TABLE IF NOT EXISTS vote_webhook_logs (
   INDEX idx_processed (processed)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 5. Create vote statistics table (optional - for analytics)
+-- 7. Create vote statistics table (optional - for analytics)
 CREATE TABLE IF NOT EXISTS vote_statistics (
   id INT AUTO_INCREMENT PRIMARY KEY,
   date DATE NOT NULL,
@@ -113,7 +132,7 @@ CREATE TABLE IF NOT EXISTS vote_statistics (
   INDEX idx_date (date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 6. Insert default vote site (Gtop100)
+-- 8. Insert default vote site (Gtop100)
 INSERT INTO vote_sites (name, display_name, url, nx_reward, cooldown_hours, ip_cooldown_hours, icon, color_from, color_to, active)
 VALUES (
   'gtop100',
@@ -128,7 +147,7 @@ VALUES (
   TRUE
 ) ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP;
 
--- 7. Update existing vote_logs records to have 'success' status if NULL
+-- 9. Update existing vote_logs records to have 'success' status if NULL (only if records exist)
 UPDATE vote_logs 
 SET status = 'success' 
 WHERE status IS NULL AND nx_awarded > 0;
@@ -137,7 +156,7 @@ UPDATE vote_logs
 SET status = 'failed' 
 WHERE status IS NULL AND nx_awarded = 0;
 
--- 8. Create or replace views for reporting
+-- 10. Create or replace views for reporting
 DROP VIEW IF EXISTS user_vote_summary;
 CREATE VIEW user_vote_summary AS
 SELECT 
@@ -167,15 +186,16 @@ FROM vote_logs
 GROUP BY DATE(vote_time), site
 ORDER BY vote_date DESC;
 
--- 9. Add indexes to accounts table if they don't exist
+-- 11. Add indexes to accounts table if they don't exist (assuming accounts table exists)
+-- If accounts table doesn't exist, these will be skipped safely
 CALL AddIndexIfNotExists('accounts', 'idx_accounts_name', 'name');
 CALL AddIndexIfNotExists('accounts', 'idx_accounts_votepoints', 'votepoints');
 
--- 10. Clean up stored procedures
+-- 12. Clean up stored procedures
 DROP PROCEDURE IF EXISTS AddColumnIfNotExists;
 DROP PROCEDURE IF EXISTS AddIndexIfNotExists;
 
--- 11. Display migration results
+-- 13. Display migration results
 SELECT 'Vote system tables migration completed successfully!' AS Status;
 
 -- Show what was created/updated
@@ -204,5 +224,5 @@ SELECT
     NULL as SuccessfulVotes
 FROM vote_sites;
 
--- Show the updated structure of vote_logs
+-- Show the structure of vote_logs
 DESCRIBE vote_logs;

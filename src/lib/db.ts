@@ -124,15 +124,108 @@ export const secureQueries = {
     );
   },
 
-  // Character queries
+  // Character queries - UPDATED to include appearance data
   getCharactersByAccountId: async (accountId: number) => {
     return query(
-      `SELECT id, name, level, job, exp, meso, str, dex, \`int\`, luk 
+      `SELECT 
+        id, 
+        accountid,
+        name, 
+        level, 
+        job, 
+        exp, 
+        meso, 
+        str, 
+        dex, 
+        \`int\`, 
+        luk,
+        hp,
+        mp,
+        maxhp,
+        maxmp,
+        skincolor,
+        gender,
+        hair,
+        face,
+        fame,
+        map,
+        spawnpoint,
+        gm,
+        world,
+        guildid,
+        guildrank
        FROM characters 
        WHERE accountid = ? 
-       ORDER BY level DESC`,
+       ORDER BY level DESC, exp DESC`,
       [accountId]
     );
+  },
+
+  // NEW: Get character equipment
+  getCharacterEquipment: async (characterId: number) => {
+    const items = await query<{ itemid: number; position: number }>(
+      `SELECT itemid, position
+      FROM inventoryitems
+      WHERE characterid = ? AND inventorytype = -1
+      ORDER BY position DESC`, // Order by position DESC so cash items (-101) come before regular (-1)
+      [characterId]
+    );
+
+    const equipment: { [key: string]: number } = {};
+    
+    // Process all items - cash items will naturally override regular items
+    // because they have lower position numbers (-101 vs -1)
+    items.forEach(item => {
+      const slot = mapEquipmentPosition(item.position);
+      if (slot) {
+        // Only set if slot is empty OR this is a cash item overriding regular item
+        if (!equipment[slot] || item.position <= -101) {
+          equipment[slot] = item.itemid;
+        }
+      }
+    });
+
+    return equipment;
+  },
+
+  // NEW: Get multiple characters' equipment in one query
+  getCharactersEquipment: async (characterIds: number[]) => {
+    if (characterIds.length === 0) return [];
+    
+    const placeholders = characterIds.map(() => '?').join(',');
+    const allItems = await query<{ characterid: number; itemid: number; position: number }>(
+      `SELECT characterid, itemid, position
+      FROM inventoryitems
+      WHERE characterid IN (${placeholders}) AND inventorytype = -1
+      ORDER BY characterid, position`,
+      characterIds
+    );
+
+    // Group by character and apply cash override logic
+    const result: { [characterId: number]: { [slot: string]: number } } = {};
+    
+    // Initialize all characters
+    characterIds.forEach(id => {
+      result[id] = {};
+    });
+
+    // First pass: add regular items
+    allItems.forEach(item => {
+      const slot = mapEquipmentPosition(item.position);
+      if (slot && item.position >= -11 && item.position <= -1) {
+        result[item.characterid][slot] = item.itemid;
+      }
+    });
+
+    // Second pass: override with cash items
+    allItems.forEach(item => {
+      const slot = mapEquipmentPosition(item.position);
+      if (slot && item.position >= -111 && item.position <= -101) {
+        result[item.characterid][slot] = item.itemid; // Override regular item
+      }
+    });
+
+    return result;
   },
 
   getMainCharacter: async (accountId: number) => {
@@ -144,6 +237,24 @@ export const secureQueries = {
        LIMIT 1`,
       [accountId]
     );
+  },
+
+  // NEW: Get full character details with equipment
+  getCharacterWithEquipment: async (characterId: number) => {
+    const character = await queryOne(
+      `SELECT 
+        c.*,
+        g.name as guildname
+       FROM characters c
+       LEFT JOIN guilds g ON c.guildid = g.guildid
+       WHERE c.id = ?`,
+      [characterId]
+    );
+
+    if (!character) return null;
+
+    const equipment = await secureQueries.getCharacterEquipment(characterId);
+    return { ...character, equipment };
   },
 
   // Admin queries - Check gm status in characters table
@@ -185,6 +296,99 @@ export const secureQueries = {
        LIMIT 1`,
       [userId, site, cooldownHours]
     );
+  },
+
+  // NEW: Rankings queries
+  getTopRankings: async (limit: number = 100) => {
+    return query(
+      `SELECT 
+        c.id,
+        c.name,
+        c.level,
+        c.job,
+        c.exp,
+        c.fame,
+        c.guildid,
+        g.name as guildname,
+        @rank := @rank + 1 as rank
+       FROM characters c
+       LEFT JOIN guilds g ON c.guildid = g.guildid
+       CROSS JOIN (SELECT @rank := 0) r
+       WHERE c.gm = 0
+       ORDER BY c.level DESC, c.exp DESC
+       LIMIT ?`,
+      [limit]
+    );
+  },
+
+  getUserRanking: async (accountId: number) => {
+    // Get the highest level character for this account
+    const mainChar = await queryOne<{ id: number; level: number; exp: number }>(
+      `SELECT id, level, exp 
+       FROM characters 
+       WHERE accountid = ? AND gm = 0
+       ORDER BY level DESC, exp DESC 
+       LIMIT 1`,
+      [accountId]
+    );
+
+    if (!mainChar) return null;
+
+    // Calculate rank
+    const rankResult = await queryOne<{ rank: number }>(
+      `SELECT COUNT(*) + 1 as rank
+       FROM characters
+       WHERE gm = 0 AND (
+         level > ? OR 
+         (level = ? AND exp > ?)
+       )`,
+      [mainChar.level, mainChar.level, mainChar.exp]
+    );
+
+    // Get full character details
+    const character = await queryOne(
+      `SELECT 
+        c.id,
+        c.name,
+        c.level,
+        c.job,
+        c.exp,
+        c.fame,
+        c.guildid,
+        g.name as guildname
+       FROM characters c
+       LEFT JOIN guilds g ON c.guildid = g.guildid
+       WHERE c.id = ?`,
+      [mainChar.id]
+    );
+
+    return character ? { ...character, rank: rankResult?.rank || 0 } : null;
+  },
+
+  // NEW: Get online count
+  getOnlineCount: async () => {
+    const result = await queryOne<{ count: number }>(
+      'SELECT COUNT(*) as count FROM accounts WHERE loggedin = 2',
+      []
+    );
+    return result?.count || 0;
+  },
+
+  // NEW: Update character image hash (for caching)
+  updateCharacterHash: async (characterId: number, hash: string) => {
+    await query(
+      `INSERT INTO chrimg (id, hash) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE hash = VALUES(hash)`,
+      [characterId, hash]
+    );
+  },
+
+  getCharacterHash: async (characterId: number) => {
+    const result = await queryOne<{ hash: string }>(
+      'SELECT hash FROM chrimg WHERE id = ?',
+      [characterId]
+    );
+    return result?.hash || null;
   }
 };
 
@@ -208,4 +412,23 @@ export function validateSortOrder(order: string): 'ASC' | 'DESC' {
     throw new Error('Invalid sort order');
   }
   return upperOrder as 'ASC' | 'DESC';
+}
+
+// Equipment position mapping helper
+export function mapEquipmentPosition(position: number): string | null {
+  const positionMap: { [key: number]: string } = {
+    '-1': 'cap', '-101': 'cap',
+    '-2': 'mask', '-102': 'mask',
+    '-3': 'eyes', '-103': 'eyes',
+    '-4': 'ears', '-104': 'ears',
+    '-5': 'coat', '-105': 'coat',
+    '-6': 'pants', '-106': 'pants',
+    '-7': 'shoes', '-107': 'shoes',
+    '-8': 'glove', '-108': 'glove',
+    '-9': 'cape', '-109': 'cape',
+    '-10': 'shield', '-110': 'shield',
+    '-11': 'weapon', '-111': 'weapon'
+  };
+  
+  return positionMap[position] || null;
 }

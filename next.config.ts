@@ -1,74 +1,89 @@
-import type { NextConfig } from "next";
+import { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Security headers
+  // Allow images from your assets
+  images: {
+    unoptimized: process.env.NODE_ENV === 'development', // Disable optimization in dev
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+      {
+        protocol: 'https',
+        hostname: 'discord.com',
+      },
+      // Add dynamic hostname support
+      {
+        protocol: 'http',
+        hostname: process.env.NEXT_PUBLIC_HOSTNAME || 'localhost',
+      },
+      {
+        protocol: 'https',
+        hostname: process.env.NEXT_PUBLIC_HOSTNAME || 'localhost',
+      }
+    ],
+  },
+  
+  // Configure allowed origins for development
   async headers() {
     return [
       {
-        // Apply these headers to all routes
-        source: '/:path*',
-        headers: [
-          {
-            key: 'X-DNS-Prefetch-Control',
-            value: 'on'
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY' // Prevents clickjacking attacks
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff' // Prevents MIME type sniffing
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin' // Controls referrer information
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block' // Legacy XSS protection (for older browsers)
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()' // Restricts browser features
-          },
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains' // Forces HTTPS (only works if site uses HTTPS)
-          },
-          {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self';"
-          }
-        ]
-      },
-      {
-        // Security headers for API routes
         source: '/api/:path*',
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'no-store, max-age=0' // Prevents caching of API responses
-          }
-        ]
-      }
+            key: 'Access-Control-Allow-Origin',
+            value: process.env.NODE_ENV === 'development' 
+              ? '*' // Allow all origins in development
+              : process.env.NEXT_PUBLIC_API_URL || '*'
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+          {
+            key: 'Access-Control-Allow-Credentials',
+            value: 'true',
+          },
+        ],
+      },
     ];
   },
-
-  // Optimize images
-  images: {
-    domains: [], // Add external image domains if needed
-    formats: ['image/avif', 'image/webp'],
+  
+  // Developer indicators configuration
+  devIndicators: {
+    position: 'bottom-right', // Position of the indicator
   },
-
-  // Disable x-powered-by header
-  poweredByHeader: false,
-
-  // Enable strict mode for better error detection
-  reactStrictMode: true,
-
-  // Compress responses
-  compress: true,
+  
+  // Experimental features for better external access
+  experimental: {
+    // Allow external requests in development
+    externalDir: true,
+  },
+  
+  // Webpack configuration
+  webpack: (config, { dev, isServer }) => {
+    // In development, configure webpack to accept external connections
+    if (dev && !isServer) {
+      // This helps with HMR (Hot Module Replacement) from external IPs
+      config.watchOptions = {
+        ...config.watchOptions,
+        poll: 1000,
+        aggregateTimeout: 300,
+      };
+    }
+    
+    return config;
+  },
+  
+  // Disable ESLint during builds
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;

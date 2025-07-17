@@ -10,6 +10,21 @@ export interface User {
   isLoggedIn?: boolean;
 }
 
+// Character equipment types
+export interface CharacterEquipment {
+  cap?: number;      // Item ID for cap/hat
+  mask?: number;     // Item ID for face accessory
+  eyes?: number;     // Item ID for eye accessory
+  ears?: number;     // Item ID for earrings
+  coat?: number;     // Item ID for top/overall
+  pants?: number;    // Item ID for bottom
+  shoes?: number;    // Item ID for shoes
+  glove?: number;    // Item ID for gloves
+  cape?: number;     // Item ID for cape
+  shield?: number;   // Item ID for shield
+  weapon?: number;   // Item ID for weapon
+}
+
 // Character types
 export interface Character {
   id: number;
@@ -18,12 +33,17 @@ export interface Character {
   job: string;
   exp: number;
   meso: number;
+  skincolor: number;  // 0-3 for different skin tones
+  gender: number;     // 0 for male, 1 for female
+  hair: number;       // Hair ID (e.g., 30000)
+  face: number;       // Face ID (e.g., 20000)
   stats: {
     str: number;
     dex: number;
     int: number;
     luk: number;
   };
+  equipment: CharacterEquipment;
 }
 
 // Announcement types
@@ -125,3 +145,6 @@ export interface UsersResponse {
   }>;
   total: number;
 }
+
+// Export the character data type for the renderer
+export type CharacterData = Character;

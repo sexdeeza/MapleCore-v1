@@ -4,6 +4,8 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { dashboardAPI, voteAPI, announcementsAPI, adminAPI } from '@/services/api';
+import { CharacterEquipment } from '@/types/api';
+import CharacterRenderer from './CharacterRenderer';
 import { 
   Home, Users, Trophy, LogOut, Bell, ChevronRight, Calendar, 
   AlertCircle, Zap, Star, Sword, Shield, Crown, User, Download,
@@ -16,6 +18,7 @@ const UserDashboard = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  
   
   // Updated vote state structure
   const [voteData, setVoteData] = useState<{
@@ -760,61 +763,151 @@ const UserDashboard = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {characters.map((char, index) => (
-                    <div key={char.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-all">
-                      <div className="h-40 bg-gradient-to-br from-orange-100 to-amber-100 relative">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Sword className="w-20 h-20 text-orange-300" />
+                  <div key={char.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-all">
+                    <div className="h-40 bg-gradient-to-br from-orange-100 to-amber-100 relative flex items-center justify-center">
+                      {/* Character Sprite */}
+                      <CharacterRenderer 
+                        character={{
+                          id: char.id,
+                          name: char.name,
+                          level: char.level,
+                          job: char.job,
+                          skincolor: char.skincolor || 0,
+                          gender: char.gender || 0,
+                          hair: char.hair || 30000,
+                          face: char.face || 20000,
+                          equipment: char.equipment || {},
+                          stats: char.stats,
+                          exp: char.exp,
+                          meso: char.meso
+                        }}
+                        scale={1.5}
+                      />
+                      <div className="absolute top-4 right-4 px-3 py-1 bg-orange-500 text-white rounded-full text-sm font-medium">
+                        Lv. {char.level}
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      <h3 className="text-xl font-bold text-gray-900 mb-1">{char.name}</h3>
+                      <p className="text-orange-600 font-medium mb-4">{char.job}</p>
+                      
+                      <div className="space-y-3 mb-6">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 text-sm">EXP Progress</span>
+                          <span className="text-gray-900 font-medium">{char.exp}%</span>
                         </div>
-                        <div className="absolute top-4 right-4 px-3 py-1 bg-orange-500 text-white rounded-full text-sm font-medium">
-                          Lv. {char.level}
+                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-500"
+                            style={{ width: `${char.exp}%` }}
+                          />
                         </div>
                       </div>
-                      <div className="p-6">
-                        <h3 className="text-xl font-bold text-gray-900 mb-1">{char.name}</h3>
-                        <p className="text-orange-600 font-medium mb-4">{char.job}</p>
-                        
-                        <div className="space-y-3 mb-6">
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600 text-sm">EXP Progress</span>
-                            <span className="text-gray-900 font-medium">{char.exp}%</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-500"
-                              style={{ width: `${char.exp}%` }}
-                            />
+
+                     {/* Equipment Preview */}
+                      {char.equipment && Object.keys(char.equipment).length > 0 && (
+                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-2 font-semibold">Equipment</p>
+                          <div className="grid grid-cols-4 gap-2">
+                            {(Object.entries(char.equipment) as [keyof CharacterEquipment, number][]).map(([type, itemId]) => {
+                              // Equipment slot mapping
+                              const equipmentInfo: { [key: string]: { folder: string; label: string } } = {
+                                cap: { folder: 'Cap', label: 'Hat' },
+                                coat: { folder: itemId >= 1050000 ? 'Longcoat' : 'Coat', label: 'Top' },
+                                pants: { folder: 'Pants', label: 'Bottom' },
+                                shoes: { folder: 'Shoes', label: 'Shoes' },
+                                glove: { folder: 'Glove', label: 'Gloves' },
+                                cape: { folder: 'Cape', label: 'Cape' },
+                                shield: { folder: 'Shield', label: 'Shield' },
+                                weapon: { folder: 'Weapon', label: 'Weapon' },
+                                mask: { folder: 'Accessory', label: 'Face' },
+                                eyes: { folder: 'Accessory', label: 'Eyes' },
+                                ears: { folder: 'Accessory', label: 'Earring' }
+                              };
+                              
+                              const info = equipmentInfo[type];
+                              if (!info || !itemId) return null;
+
+                              // Format item ID with proper padding
+                              const formattedId = itemId.toString().padStart(8, '0');
+                              const iconPath = `/assets/maplestory/${info.folder}/${formattedId}.img/info.icon.png`;
+                              
+                              return (
+                                <div key={type} className="relative group">
+                                  {/* Item slot container */}
+                                  <div className="relative w-12 h-12 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg border-2 border-gray-400 overflow-hidden transition-all hover:border-orange-400 hover:shadow-lg">
+                                    {/* Item icon */}
+                                    <img 
+                                      src={iconPath}
+                                      alt={info.label}
+                                      className="absolute inset-0 w-full h-full object-contain p-1"
+                                      onError={(e) => {
+                                        // Fallback to text if icon doesn't exist
+                                        const img = e.currentTarget as HTMLImageElement;
+                                        img.style.display = 'none';
+                                        const nextElement = img.nextElementSibling as HTMLElement;
+                                        if (nextElement) {
+                                          nextElement.classList.remove('hidden');
+                                        }
+                                      }}
+                                    />
+                                    {/* Fallback text */}
+                                    <div className="hidden absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-600">
+                                      {type.substring(0, 3).toUpperCase()}
+                                    </div>
+                                    
+                                    {/* Equipped indicator */}
+                                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                                      <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Tooltip */}
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                                    <div className="font-semibold">{info.label}</div>
+                                    <div className="text-gray-300 text-xs">ID: {itemId}</div>
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                                      <div className="border-4 border-transparent border-t-gray-800"></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
+                      )}
 
-                        {/* Meso Display */}
-                        <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                          <div className="flex items-center justify-between">
-                            <span className="text-yellow-700 font-medium text-sm">Meso</span>
-                            <span className="text-yellow-800 font-bold">{char.meso.toLocaleString()}</span>
-                          </div>
+                      {/* Meso Display */}
+                      <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-yellow-700 font-medium text-sm">Meso</span>
+                          <span className="text-yellow-800 font-bold">{char.meso.toLocaleString()}</span>
                         </div>
+                      </div>
 
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <p className="text-gray-500 text-xs">STR</p>
-                            <p className="text-gray-900 font-bold">{char.stats.str}</p>
-                          </div>
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <p className="text-gray-500 text-xs">DEX</p>
-                            <p className="text-gray-900 font-bold">{char.stats.dex}</p>
-                          </div>
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <p className="text-gray-500 text-xs">INT</p>
-                            <p className="text-gray-900 font-bold">{char.stats.int}</p>
-                          </div>
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <p className="text-gray-500 text-xs">LUK</p>
-                            <p className="text-gray-900 font-bold">{char.stats.luk}</p>
-                          </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                          <p className="text-gray-500 text-xs">STR</p>
+                          <p className="text-gray-900 font-bold">{char.stats.str}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                          <p className="text-gray-500 text-xs">DEX</p>
+                          <p className="text-gray-900 font-bold">{char.stats.dex}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                          <p className="text-gray-500 text-xs">INT</p>
+                          <p className="text-gray-900 font-bold">{char.stats.int}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                          <p className="text-gray-500 text-xs">LUK</p>
+                          <p className="text-gray-900 font-bold">{char.stats.luk}</p>
                         </div>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                ))}
                 </div>
               )}
             </div>
