@@ -38,7 +38,7 @@ MapleKaede CMS is a cutting-edge Content Management System built specifically fo
 - Git (optional)  
 
 **MapleStory Requirements**
-- MapleStory v83 Server (OdinMS/HeavenMS based)  
+- MapleStory v83 Server (Cosmic/HeavenMS based)  
 - MySQL Database with v83 schema  
 
 ## 🚀 Installation Guide
