@@ -1,6 +1,6 @@
 // app/page.tsx
-import MapleKaedeLanding from '@/components/MapleKaedeLanding'
+import MapleCoreLanding from '@/components/MapleCoreLanding'
 
 export default function Home() {
-  return <MapleKaedeLanding />
+  return <MapleCoreLanding />
 }

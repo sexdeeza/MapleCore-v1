@@ -10,6 +10,12 @@ export const metadata: Metadata = {
   description: 'Experience MapleStory v83 reimagined with modern gameplay, stunning visuals, and an incredible community.',
   keywords: 'MapleStory, v83, private server, MMORPG, MapleKaede',
   authors: [{ name: 'MapleKaede Team' }],
+  // Add the favicon here
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
   openGraph: {
     title: 'MapleKaede - Premium MapleStory v83 Server',
     description: 'Join thousands of players in the ultimate MapleStory v83 experience.',

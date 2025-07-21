@@ -4,7 +4,7 @@
 import dynamic from 'next/dynamic';
 
 // Dynamically import AdminPage with no SSR to avoid hydration issues
-const AdminPage = dynamic(() => import('@/components/AdminPage'), {
+const AdminPage = dynamic(() => import('@/components/admin-dashboard/AdminPage'), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
