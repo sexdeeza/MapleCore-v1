@@ -1,4 +1,4 @@
-// src/app/api/dashboard/rankings/route.ts
+// src/app/api/dashboard/rankings/route.ts - Simplified Version
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { verifyToken } from '@/lib/security/password';
@@ -19,9 +19,44 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get top characters with guild information and character data
-    const rankings = await query<any>(
-      `SELECT 
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const jobFilter = searchParams.get('job') || 'all';
+    const searchName = searchParams.get('search') || '';
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(10, parseInt(searchParams.get('limit') || '15')));
+    const offset = (page - 1) * limit;
+
+    // Build WHERE clause
+    let whereConditions = ['c.gm = 0'];
+    let queryParams: any[] = [];
+
+    // Add job filtering
+    const jobCondition = getJobFilterCondition(jobFilter);
+    if (jobCondition) {
+      whereConditions.push(jobCondition);
+    }
+
+    // Add search filtering
+    if (searchName.trim()) {
+      whereConditions.push('c.name LIKE ?');
+      queryParams.push(`${searchName.trim()}%`);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Get total count for pagination - Simple query
+    const totalCountQuery = `SELECT COUNT(*) as total FROM characters c ${whereClause}`;
+    console.log('Total count query:', totalCountQuery);
+    console.log('Total count params:', queryParams);
+    
+    const totalResult = await query<any>(totalCountQuery, queryParams);
+    const total = totalResult[0]?.total || 0;
+    console.log('Total count result:', total);
+
+    // Get rankings - Simple query without ROW_NUMBER()
+    const rankingsQuery = `
+      SELECT 
         c.id,
         c.name,
         c.level,
@@ -42,29 +77,38 @@ export async function GET(request: NextRequest) {
         g.name as guild_name
       FROM characters c
       LEFT JOIN guilds g ON c.guildid = g.guildid AND c.guildid > 0
-      WHERE c.gm = 0
+      ${whereClause}
       ORDER BY c.level DESC, c.exp DESC
-      LIMIT 100`
-    );
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    console.log('Rankings query:', rankingsQuery);
+    console.log('Rankings params:', queryParams);
+    
+    const rankings = await query<any>(rankingsQuery, queryParams);
+    console.log('Rankings result count:', rankings.length);
 
     // Get equipment for all characters at once
     const characterIds = rankings.map((char: any) => char.id);
-    const allEquipment = await secureQueries.getCharactersEquipment(characterIds);
+    const allEquipment = characterIds.length > 0 
+      ? await secureQueries.getCharactersEquipment(characterIds)
+      : {};
 
-    // Format rankings
+    // Format rankings - Simple ranking calculation
     const formattedRankings = rankings.map((char: any, index: number) => ({
-      rank: index + 1,
+      rank: offset + index + 1,
+      overallRank: offset + index + 1,
       id: char.id,
       name: char.name,
       level: char.level,
       exp: char.exp,
       job: getJobName(char.job),
       jobId: char.job,
+      jobCategory: getJobCategory(char.job),
       guild: char.guild_name || '',
       fame: char.fame || 0,
       accountId: char.accountid,
       isCurrentUser: currentUserId === char.accountid,
-      // Add character appearance data
       skincolor: char.skincolor || 0,
       gender: char.gender || 0,
       hair: char.hair || 30000,
@@ -82,18 +126,15 @@ export async function GET(request: NextRequest) {
     // Find user's ranking if logged in
     let userRanking = null;
     if (currentUserId) {
-      // Check if user is in top 100
+      // Check if user is in current page results
       const userCharsInRankings = formattedRankings.filter(char => char.isCurrentUser);
       
       if (userCharsInRankings.length > 0) {
-        // Get the best ranked character
-        userRanking = userCharsInRankings.reduce((best, current) => 
-          current.rank < best.rank ? current : best
-        );
+        userRanking = userCharsInRankings[0]; // Get first user character
       } else {
-        // Find user's best character overall
-        const [userChar] = await query<any>(
-          `SELECT 
+        // Find user's best character overall - Simple query
+        const userCharQuery = `
+          SELECT 
             c.id,
             c.name,
             c.level,
@@ -110,38 +151,47 @@ export async function GET(request: NextRequest) {
             c.int,
             c.luk,
             c.meso,
-            g.name as guild_name,
-            (
-              SELECT COUNT(*) + 1 
-              FROM characters c2 
-              WHERE c2.gm = 0
-              AND (c2.level > c.level OR (c2.level = c.level AND c2.exp > c.exp))
-            ) as user_rank
+            g.name as guild_name
           FROM characters c
           LEFT JOIN guilds g ON c.guildid = g.guildid AND c.guildid > 0
           WHERE c.accountid = ? AND c.gm = 0
           ORDER BY c.level DESC, c.exp DESC
-          LIMIT 1`,
-          [currentUserId]
-        );
+          LIMIT 1
+        `;
 
-        if (userChar) {
+        const userCharResult = await query<any>(userCharQuery, [currentUserId]);
+        
+        if (userCharResult.length > 0) {
+          const userChar = userCharResult[0];
+          
+          // Calculate user rank - Simple count query
+          const rankQuery = `
+            SELECT COUNT(*) + 1 as user_rank
+            FROM characters c2 
+            WHERE c2.gm = 0
+            AND (c2.level > ? OR (c2.level = ? AND c2.exp > ?))
+          `;
+          
+          const rankResult = await query<any>(rankQuery, [userChar.level, userChar.level, userChar.exp]);
+          const userRank = rankResult[0]?.user_rank || 1;
+          
           // Get equipment for this user character
           const userEquipment = await secureQueries.getCharacterEquipment(userChar.id);
           
           userRanking = {
-            rank: userChar.user_rank,
+            rank: userRank,
+            overallRank: userRank,
             id: userChar.id,
             name: userChar.name,
             level: userChar.level,
             exp: userChar.exp,
             job: getJobName(userChar.job),
             jobId: userChar.job,
+            jobCategory: getJobCategory(userChar.job),
             guild: userChar.guild_name || '',
             fame: userChar.fame || 0,
             accountId: currentUserId,
             isCurrentUser: true,
-            // Add character appearance data for user ranking
             skincolor: userChar.skincolor || 0,
             gender: userChar.gender || 0,
             hair: userChar.hair || 30000,
@@ -159,9 +209,29 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Calculate pagination info
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
     return NextResponse.json({ 
       rankings: formattedRankings,
-      userRanking
+      userRanking,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: total,
+        itemsPerPage: limit,
+        hasNextPage,
+        hasPrevPage,
+        startItem: offset + 1,
+        endItem: Math.min(offset + limit, total)
+      },
+      filters: {
+        job: jobFilter,
+        search: searchName,
+        availableJobs: getAvailableJobCategories()
+      }
     });
 
   } catch (error) {
@@ -172,7 +242,69 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-// Helper function to convert job ID to job name - UPDATED with your server's jobs
+
+// Helper function to get job filter condition
+function getJobFilterCondition(jobFilter: string): string | null {
+  const jobFilters: { [key: string]: string } = {
+    'beginner': 'c.job = 0',
+    'noblesse': 'c.job = 1000', // Cygnus beginner
+    'warrior': 'c.job BETWEEN 100 AND 132',
+    'dawn-warrior': 'c.job BETWEEN 1100 AND 1112', // Cygnus warrior
+    'magician': 'c.job BETWEEN 200 AND 232',
+    'blaze-wizard': 'c.job BETWEEN 1200 AND 1212', // Cygnus magician
+    'thief': 'c.job BETWEEN 400 AND 434',
+    'night-walker': 'c.job BETWEEN 1400 AND 1412', // Cygnus thief
+    'bowman': 'c.job BETWEEN 300 AND 322',
+    'wind-archer': 'c.job BETWEEN 1300 AND 1312', // Cygnus archer
+    'pirate': 'c.job BETWEEN 500 AND 532',
+    'thunder-breaker': 'c.job BETWEEN 1500 AND 1512', // Cygnus pirate
+    'aran': 'c.job BETWEEN 2000 AND 2112',
+    'gm': 'c.job BETWEEN 800 AND 910'
+  };
+
+  return jobFilters[jobFilter] || null;
+}
+
+// Helper function to get job category
+function getJobCategory(jobId: number): string {
+  if (jobId === 0) return 'beginner';
+  if (jobId === 1000) return 'noblesse';
+  if (jobId >= 100 && jobId <= 132) return 'warrior';
+  if (jobId >= 1100 && jobId <= 1112) return 'dawn-warrior';
+  if (jobId >= 200 && jobId <= 232) return 'magician';
+  if (jobId >= 1200 && jobId <= 1212) return 'blaze-wizard';
+  if (jobId >= 400 && jobId <= 434) return 'thief';
+  if (jobId >= 1400 && jobId <= 1412) return 'night-walker';
+  if (jobId >= 300 && jobId <= 322) return 'bowman';
+  if (jobId >= 1300 && jobId <= 1312) return 'wind-archer';
+  if (jobId >= 500 && jobId <= 532) return 'pirate';
+  if (jobId >= 1500 && jobId <= 1512) return 'thunder-breaker';
+  if (jobId >= 2000 && jobId <= 2112) return 'aran';
+  if (jobId >= 800 && jobId <= 910) return 'gm';
+  return 'unknown';
+}
+
+// Helper function to get available job categories
+function getAvailableJobCategories() {
+  return [
+    { value: 'all', label: 'All Jobs', icon: 'all' },
+    { value: 'beginner', label: 'Beginner', icon: 'beginner' },
+    { value: 'noblesse', label: 'Noblesse', icon: 'beginner' },
+    { value: 'warrior', label: 'Warrior', icon: 'warrior' },
+    { value: 'dawn-warrior', label: 'Dawn Warrior', icon: 'warrior' },
+    { value: 'magician', label: 'Magician', icon: 'magician' },
+    { value: 'blaze-wizard', label: 'Blaze Wizard', icon: 'magician' },
+    { value: 'thief', label: 'Thief', icon: 'thief' },
+    { value: 'night-walker', label: 'Night Walker', icon: 'thief' },
+    { value: 'bowman', label: 'Bowman', icon: 'bowman' },
+    { value: 'wind-archer', label: 'Wind Archer', icon: 'bowman' },
+    { value: 'pirate', label: 'Pirate', icon: 'pirate' },
+    { value: 'thunder-breaker', label: 'Thunder Breaker', icon: 'pirate' },
+    { value: 'aran', label: 'Aran', icon: 'aran' }
+  ];
+}
+
+// Helper function to convert job ID to job name
 function getJobName(jobId: number): string {
   const jobMap: { [key: number]: string } = {
     // Beginner
@@ -219,15 +351,24 @@ function getJobName(jobId: number): string {
     420: 'Bandit',
     421: 'Chief Bandit',
     422: 'Shadower',
+    430: 'Blade Recruit',
+    431: 'Blade Acolyte',
+    432: 'Blade Specialist',
+    433: 'Blade Lord',
+    434: 'Blade Master',
     
     // Pirates
     500: 'Pirate',
+    501: 'Pirate',
     510: 'Brawler',
     511: 'Marauder',
     512: 'Buccaneer',
     520: 'Gunslinger',
     521: 'Outlaw',
     522: 'Corsair',
+    530: 'Cannoneer',
+    531: 'Cannon Trooper',
+    532: 'Cannon Master',
     
     // Special Jobs
     800: 'Maple Leaf Brigadier',

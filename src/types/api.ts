@@ -59,17 +59,59 @@ export interface Announcement {
   priority?: number;
 }
 
-// Ranking types
+// Ranking filter types
+export interface RankingFilters {
+  job: string;
+  search: string;
+  page: number;
+  limit: number;
+}
+
+export interface JobCategory {
+  value: string;
+  label: string;
+  icon: string;
+}
+
+export interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  startItem: number;
+  endItem: number;
+}
+
+// Updated ranking types to match enhanced API
 export interface RankingPlayer {
-  id: number;
   rank: number;
+  overallRank: number;
+  id: number;
   name: string;
   level: number;
-  job: string;
-  guild?: string;
-  fame: number;
   exp: number;
-  isCurrentUser?: boolean;
+  job: string;
+  jobId: number;
+  jobCategory: string;
+  guild: string;
+  fame: number;
+  accountId: number;
+  isCurrentUser: boolean;
+  // Character appearance data
+  skincolor: number;
+  gender: number;
+  hair: number;
+  face: number;
+  equipment: CharacterEquipment;
+  stats: {
+    str: number;
+    dex: number;
+    int: number;
+    luk: number;
+  };
+  meso: number;
 }
 
 // Vote types
@@ -119,9 +161,16 @@ export interface CharactersResponse {
   characters: Character[];
 }
 
+// Updated rankings response to match enhanced API
 export interface RankingsResponse {
   rankings: RankingPlayer[];
   userRanking?: RankingPlayer;
+  pagination: PaginationInfo;
+  filters: {
+    job: string;
+    search: string;
+    availableJobs: JobCategory[];
+  };
 }
 
 export interface AnnouncementsResponse {
