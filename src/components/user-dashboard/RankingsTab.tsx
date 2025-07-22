@@ -35,9 +35,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
   updateRankingFilters,
   fetchRankings
 }) => {
-  const [hoveredPlayer, setHoveredPlayer] = useState<any>(null);
   const [searchInput, setSearchInput] = useState('');
-  const tooltipRef = useRef<HTMLDivElement>(null);
 
   const handleJobFilter = (job: string) => {
     updateRankingFilters({ job, page: 1 });
@@ -77,57 +75,52 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
     return iconMap[jobCategory] || '❓';
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (tooltipRef.current && hoveredPlayer) {
-      const tooltip = tooltipRef.current;
-      const tooltipRect = tooltip.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      
-      let left = e.clientX + 15;
-      let top = e.clientY - tooltipRect.height / 2;
-      
-      if (left + tooltipRect.width > viewportWidth - 10) {
-        left = e.clientX - tooltipRect.width - 15;
-      }
-      
-      if (top + tooltipRect.height > viewportHeight - 10) {
-        top = viewportHeight - tooltipRect.height - 10;
-      }
-      
-      if (top < 10) {
-        top = 10;
-      }
-      
-      if (left < 10) {
-        left = 10;
-      }
-      
-      tooltip.style.left = `${left}px`;
-      tooltip.style.top = `${top}px`;
-    }
-  };
-
-  const handleMouseEnter = (player: any) => {
-    setHoveredPlayer(player);
-    if (tooltipRef.current) {
-      setTimeout(() => {
-        if (tooltipRef.current) {
-          tooltipRef.current.style.opacity = '1';
-        }
-      }, 10);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setHoveredPlayer(null);
-    if (tooltipRef.current) {
-      tooltipRef.current.style.opacity = '0';
-    }
-  };
-
   return (
     <div className="space-y-8 pb-32">
+      <style jsx>{`
+        @keyframes sparkle {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(1.1); }
+        }
+        
+        .ranking-row {
+          transition: all 0.3s ease;
+        }
+        
+        .ranking-row .bg-gif {
+          opacity: 0.3;
+          transition: opacity 0.3s ease;
+        }
+        
+        .ranking-row .character-avatar {
+          opacity: 0.5;
+          transition: opacity 0.3s ease;
+        }
+        
+        .ranking-row .data-tag {
+          opacity: 0.7;
+          transition: all 0.3s ease;
+        }
+        
+        .ranking-row:hover .bg-gif {
+          opacity: 1;
+        }
+        
+        .ranking-row:hover .character-avatar {
+          opacity: 1;
+        }
+        
+        .ranking-row:hover .data-tag {
+          opacity: 1;
+          transform: translateY(-1px);
+        }
+        
+        .ranking-row:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+      `}</style>
+      
       {/* Enhanced Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="group relative bg-gradient-to-br from-orange-50 via-orange-50 to-orange-100 rounded-3xl p-6 border border-orange-200/50 hover:shadow-2xl hover:scale-105 transition-all duration-500 overflow-hidden">
@@ -174,7 +167,7 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
               </div>
             ) : rankings.find(r => r.isCurrentUser) ? (
               <div>
-                <p className="text-lg font-bold text-orange-600">Top {rankingPagination?.itemsPerPage || 15}!</p>
+                <p className="text-lg font-bold text-orange-600">Top 10!</p>
                 <p className="text-orange-600 text-sm">In current view</p>
               </div>
             ) : (
@@ -375,161 +368,175 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
           </div>
         </div>
 
+        {/* Custom Table */}
         {isLoadingRankings ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin"></div>
             <span className="ml-3 text-gray-600">Loading rankings...</span>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="w-20 px-4 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Rank</th>
-                  <th className="w-56 px-4 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Player</th>
-                  <th className="w-20 px-4 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Level</th>
-                  <th className="w-32 px-4 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Job</th>
-                  <th className="w-32 px-4 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Guild</th>
-                  <th className="w-24 px-4 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Fame</th>
-                  <th className="w-24 px-4 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">EXP</th>
-                  <th className="w-28 px-4 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Character</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {rankings.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                      <div className="flex flex-col items-center gap-4">
-                        <Trophy className="w-12 h-12 text-gray-300" />
-                        <div>
-                          <p className="text-lg font-medium">No ranking data found</p>
-                          <p className="text-sm">
-                            {rankingFilters.search 
-                              ? `No players found matching "${rankingFilters.search}"`
-                              : rankingFilters.job !== 'all'
-                              ? `No ${rankingFilters.job} players found`
-                              : 'Rankings will appear here once characters are created'
-                            }
-                          </p>
+          <div className="p-6 space-y-4">
+            {rankings.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="flex flex-col items-center gap-4">
+                  <Trophy className="w-12 h-12 text-gray-300" />
+                  <div>
+                    <p className="text-lg font-medium text-gray-600">No ranking data found</p>
+                    <p className="text-sm text-gray-500">
+                      {rankingFilters.search 
+                        ? `No players found matching "${rankingFilters.search}"`
+                        : rankingFilters.job !== 'all'
+                        ? `No ${rankingFilters.job} players found`
+                        : 'Rankings will appear here once characters are created'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Header Row */}
+                <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-bold text-gray-600 uppercase tracking-wider border-b border-gray-200">
+                  <div className="col-span-1 text-center">Rank</div>
+                  <div className="col-span-1 text-center">Avatar</div>
+                  <div className="col-span-3">Player</div>
+                  <div className="col-span-1 text-center">Level</div>
+                  <div className="col-span-2 text-center">Job</div>
+                  <div className="col-span-2 text-center">Guild</div>
+                  <div className="col-span-1 text-center">Fame</div>
+                  <div className="col-span-1 text-center">EXP</div>
+                </div>
+
+                {/* Data Rows */}
+                {rankings.map((player, index) => (
+                  <div 
+                    key={player.id} 
+                    className={`ranking-row group relative grid grid-cols-12 gap-4 px-6 py-4 rounded-xl cursor-pointer ${
+                      player.isCurrentUser 
+                        ? 'bg-gradient-to-r from-orange-50 to-orange-25 border-2 border-orange-300' 
+                        : 'bg-gray-50 hover:bg-white border-2 border-transparent hover:border-gray-200'
+                    }`}
+                    style={{
+                      minHeight: '120px',
+                      overflow: 'hidden',
+                      position: 'relative'
+                    }}
+                  >
+                    {/* Background GIF for top 10 */}
+                    {player.rank <= 10 && (
+                      <div 
+                        className="bg-gif absolute inset-0 pointer-events-none"
+                        style={{
+                          backgroundImage: player.rank <= 3 
+                            ? `url('/assets/gifs/ranking-bg-${player.rank}.gif')`
+                            : `url('/assets/gifs/ranking-bg-4-10.gif')`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: player.rank === 1 ? 'center -380px' : 
+                                             player.rank === 2 ? 'center -400px' : 
+                                             player.rank === 3 ? 'center -250px' : 'center -120px',
+                          backgroundRepeat: 'no-repeat',
+                          transform: `scale(1.2)`,
+                          transformOrigin: 'center',
+                          zIndex: 0
+                        }}
+                      />
+                    )}
+
+                    {/* Rank */}
+                    <div className="col-span-1 flex items-center justify-center relative z-10">
+                      <span className="data-tag inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-r from-orange-100 to-orange-50 text-gray-800 border border-orange-200/50 shadow-sm">
+                        {player.rank <= 3 && (
+                          <Crown className={`w-4 h-4 ${
+                            player.rank === 1 ? 'text-yellow-500' :
+                            player.rank === 2 ? 'text-gray-400' :
+                            'text-orange-600'
+                          }`} />
+                        )}
+                        #{player.rank}
+                      </span>
+                    </div>
+
+                    {/* Character Avatar */}
+                    <div className="col-span-1 flex items-center justify-center relative z-10">
+                      <div className="character-avatar relative" style={{ width: '100px', height: '100px' }}>
+                        <div className="absolute inset-0 flex items-end justify-center" style={{ bottom: '-55px' }}>
+                          <CharacterRenderer 
+                            character={{
+                              id: player.id,
+                              name: player.name,
+                              level: player.level,
+                              job: player.jobId.toString(),
+                              skincolor: player.skincolor || 0,
+                              gender: player.gender || 0,
+                              hair: player.hair || 30000,
+                              face: player.face || 20000,
+                              equipment: player.equipment || {},
+                              stats: player.stats || { str: 4, dex: 4, int: 4, luk: 4 },
+                              exp: player.exp || 0,
+                              meso: player.meso || 0
+                            }}
+                            scale={1.2}
+                          />
                         </div>
                       </div>
-                    </td>
-                  </tr>
-                ) : (
-                  rankings.map((player, index) => (
-                    <tr 
-                      key={player.id} 
-                      className={`hover:bg-gradient-to-r hover:from-orange-50 hover:to-transparent transition-all duration-200 cursor-pointer ${
-                        player.isCurrentUser ? 'bg-gradient-to-r from-orange-50 to-orange-25 border-l-4 border-orange-400' : ''
-                      }`}
-                      onMouseEnter={() => handleMouseEnter(player)}
-                      onMouseLeave={handleMouseLeave}
-                      onMouseMove={handleMouseMove}
-                    >
-                      {/* Rank */}
-                      <td className="w-20 px-4 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {player.rank <= 3 && (
-                            <Crown className={`w-4 h-4 ${
-                              player.rank === 1 ? 'text-yellow-500' :
-                              player.rank === 2 ? 'text-gray-400' :
-                              'text-orange-600'
-                            }`} />
-                          )}
-                          <span className={`font-bold ${
-                            player.isCurrentUser ? 'text-orange-600' : 'text-gray-900'
-                          }`}>
-                            #{player.rank}
-                          </span>
-                        </div>
-                      </td>
+                    </div>
 
-                      {/* Player */}
-                      <td className="w-56 px-4 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${
-                            player.isCurrentUser 
-                              ? 'bg-gradient-to-br from-orange-500 to-orange-600' 
-                              : player.rank <= 3
-                              ? 'bg-gradient-to-br from-purple-500 to-purple-600'
-                              : 'bg-gradient-to-br from-gray-400 to-gray-500'
-                          }`}>
-                            {player.name[0].toUpperCase()}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={`font-bold truncate ${
-                              player.isCurrentUser ? 'text-orange-600' : 'text-gray-900'
-                            }`}>
-                              {player.name}
-                            </p>
-                            {player.isCurrentUser && (
-                              <p className="text-xs text-orange-600 font-medium">(You)</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Level */}
-                      <td className="w-20 px-4 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <span className={`text-lg font-bold ${
-                            player.isCurrentUser ? 'text-orange-600' : 'text-gray-900'
-                          }`}>
-                            {player.level}
-                          </span>
-                          {player.level >= 200 && (
-                            <Star className="w-4 h-4 text-yellow-500" />
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Job */}
-                      <td className="w-32 px-4 py-4 text-center">
-                        <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200 truncate max-w-full">
-                          {player.job}
+                    {/* Player Name */}
+                    <div className="col-span-3 flex items-center relative z-10">
+                      <div className="min-w-0">
+                        <span className="data-tag inline-block px-4 py-1.5 rounded-full text-sm font-semibold bg-gradient-to-r from-orange-100 via-orange-50 to-white text-gray-800 border border-orange-200/50 shadow-sm">
+                          {player.name}
+                          {player.isCurrentUser && <span className="ml-1 text-orange-600">(You)</span>}
                         </span>
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* Guild */}
-                      <td className="w-32 px-4 py-4 text-center">
-                        {player.guild ? (
-                          <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 truncate max-w-full">
-                            {player.guild}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs font-medium">No Guild</span>
+                    {/* Level */}
+                    <div className="col-span-1 flex items-center justify-center relative z-10">
+                      <span className="data-tag inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-br from-orange-100 to-yellow-50 text-gray-800 border border-orange-200/50 shadow-sm">
+                        {player.level}
+                        {player.level >= 200 && (
+                          <Star className="w-4 h-4 text-yellow-500" />
                         )}
-                      </td>
+                      </span>
+                    </div>
 
-                      {/* Fame */}
-                      <td className="w-24 px-4 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Heart className="w-3 h-3 text-pink-500 flex-shrink-0" />
-                          <span className="text-sm font-medium text-gray-900 truncate">{player.fame.toLocaleString()}</span>
-                        </div>
-                      </td>
+                    {/* Job */}
+                    <div className="col-span-2 flex items-center justify-center relative z-10">
+                      <span className="data-tag inline-block px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-r from-indigo-100 to-orange-50 text-gray-800 border border-orange-200/50 shadow-sm">
+                        {player.job}
+                      </span>
+                    </div>
 
-                      {/* EXP */}
-                      <td className="w-24 px-4 py-4 text-center">
-                        <span className="text-xs font-mono text-gray-600 truncate block">
-                          {player.exp.toLocaleString()}
+                    {/* Guild */}
+                    <div className="col-span-2 flex items-center justify-center relative z-10">
+                      {player.guild ? (
+                        <span className="data-tag inline-block px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-r from-blue-100 to-orange-50 text-gray-800 border border-orange-200/50 shadow-sm">
+                          {player.guild}
                         </span>
-                      </td>
+                      ) : (
+                        <span className="text-gray-400 text-sm font-medium">No Guild</span>
+                      )}
+                    </div>
 
-                      {/* Character */}
-                      <td className="w-28 px-4 py-4 text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center hover:bg-orange-200 transition-colors">
-                            <User className="w-4 h-4 text-orange-600" />
-                          </div>
-                          <span className="text-xs text-gray-500">Hover</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                    {/* Fame */}
+                    <div className="col-span-1 flex items-center justify-center relative z-10">
+                      <span className="data-tag inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-r from-pink-100 to-orange-50 text-gray-800 border border-orange-200/50 shadow-sm">
+                        <Heart className="w-4 h-4 text-pink-500" />
+                        {player.fame.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* EXP */}
+                    <div className="col-span-1 flex items-center justify-center relative z-10">
+                      <span className="data-tag inline-block px-3 py-1 rounded-full text-xs font-mono font-semibold bg-gradient-to-r from-purple-100 to-orange-50 text-gray-800 border border-orange-200/50 shadow-sm">
+                        {player.exp.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -595,111 +602,6 @@ const RankingsTab: React.FC<RankingsTabProps> = ({
           </div>
         </div>
       )}
-
-      {/* Character Hover Tooltip */}
-      <div 
-        ref={tooltipRef}
-        className="fixed opacity-0 transition-opacity duration-300 pointer-events-none z-[9999]"
-        style={{
-          left: '0px',
-          top: '0px',
-          transform: 'none'
-        }}>
-        {hoveredPlayer && (
-          <div className="bg-white rounded-2xl shadow-2xl border-2 border-orange-200 p-4 min-w-[280px]">
-            <div className="flex items-center gap-4">
-              {/* Character Renderer with Background */}
-              <div className="flex-shrink-0 relative overflow-hidden rounded-xl border border-orange-200" 
-                style={{
-                  width: '200px',
-                  height: '250px',
-                }}
-              >
-                {/* Background Image */}
-                <div 
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage: 'url("/assets/character-bg.jpg")',
-                    backgroundSize: '350%',
-                    backgroundPosition: 'center calc(62% - 70px)',
-                    backgroundRepeat: 'no-repeat',
-                    transform: 'scale(1)',
-                    transformOrigin: 'center',
-                  }}
-                />
-                
-                {/* Character Renderer */}
-                <div 
-                  className="absolute bottom-0 left-0 right-0 flex justify-center"
-                  style={{
-                    paddingBottom: '30px',
-                  }}
-                >
-                  <CharacterRenderer 
-                    character={{
-                      id: hoveredPlayer.id,
-                      name: hoveredPlayer.name,
-                      level: hoveredPlayer.level,
-                      job: hoveredPlayer.jobId.toString(),
-                      skincolor: hoveredPlayer.skincolor || 0,
-                      gender: hoveredPlayer.gender || 0,
-                      hair: hoveredPlayer.hair || 30000,
-                      face: hoveredPlayer.face || 20000,
-                      equipment: hoveredPlayer.equipment || {},
-                      stats: hoveredPlayer.stats || { str: 4, dex: 4, int: 4, luk: 4 },
-                      exp: hoveredPlayer.exp || 0,
-                      meso: hoveredPlayer.meso || 0
-                    }}
-                    scale={1.2}
-                  />
-                </div>
-              </div>
-              
-              {/* Character Info */}
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  {hoveredPlayer.rank <= 3 && (
-                    <Crown className={`w-5 h-5 ${
-                      hoveredPlayer.rank === 1 ? 'text-yellow-500' :
-                      hoveredPlayer.rank === 2 ? 'text-gray-400' :
-                      'text-orange-600'
-                    }`} />
-                  )}
-                  <h3 className="font-bold text-gray-900 text-lg">{hoveredPlayer.name}</h3>
-                </div>
-                
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="w-16 text-gray-500">Level:</span>
-                    <span className="font-semibold text-orange-600">{hoveredPlayer.level}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-16 text-gray-500">Job:</span>
-                    <span className="font-medium text-gray-700">{hoveredPlayer.job}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-16 text-gray-500">Guild:</span>
-                    {hoveredPlayer.guild ? (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                        {hoveredPlayer.guild}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">No Guild</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-16 text-gray-500">Fame:</span>
-                    <div className="flex items-center gap-1">
-                      <Heart className="w-3 h-3 text-pink-500" />
-                      <span className="font-medium text-gray-700">{hoveredPlayer.fame.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 };

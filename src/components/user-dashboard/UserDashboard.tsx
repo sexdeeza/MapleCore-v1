@@ -462,7 +462,14 @@ const UserDashboard = () => {
               {/* NX Balance */}
               <div className="hidden lg:flex items-center gap-2 px-3 py-2 bg-orange-50 rounded-xl border border-orange-200/50 shadow-sm">
                 <Star className="w-4 h-4 text-orange-500" />
-                <span className="text-orange-700 text-sm font-bold">{userData.nx.toLocaleString()}</span>
+                <span className="text-orange-700 text-sm font-bold">
+                  {userData.nx >= 1000000 
+                    ? `${Math.floor(userData.nx / 1000000)}M` 
+                    : userData.nx >= 1000 
+                    ? `${Math.floor(userData.nx / 1000)}K`
+                    : userData.nx.toLocaleString()
+                  }
+                </span>
                 <span className="text-orange-600 text-xs font-medium">NX</span>
               </div>
               
